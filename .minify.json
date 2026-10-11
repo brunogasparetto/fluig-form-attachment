@@ -1,0 +1,8 @@
+{
+    "js": {
+        "type": "putout",
+        "putout": {
+            "mergeVariables": false
+        }
+    }
+}

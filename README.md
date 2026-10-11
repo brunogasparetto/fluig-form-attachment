@@ -47,6 +47,10 @@ Ao carregar o plugin no seu formulário ele ocultará a Aba Anexos do Fluig, evi
 insiram documentos não solicitados e, mais importante, removam anexos que já estão
 vinculados a um campo do formulário.
 
+Para controlar a visibilidade da aba de anexos use os métodos:
+- `$.fluigFormAttachment.showAttachmentTab()`
+- `$.fluigFormAttachment.hideAttachmentTab()`
+
 ### Básico
 
 Basta ter um campo do tipo texto e instanciar o plugin para esse campo.
@@ -86,7 +90,8 @@ propriedades de configuração:
 | **showActionButton** | boolean | `true` | Indica se deve exibir os botões de Ação (Upload ou Delete) |
 | **filename** | string | `"Anexo"` | Nome/Descrição do Anexo. Caso exista o atributo `data-filename` no campo do formulário ele terá preferência. **Cuidado**: Não pode ter mais de um anexo com o mesmo Nome/Descrição. |
 | **prefixName** | boolean\|string | `false` | Adiciona prefixo à descrição do anexo. Caso `true` criará um prefixo aleatório usando parte de um UUID. No caso de `string` a usará como prefixo fixo, adicionando `-` como separador. |
-| **accept** | string | `"*"` | Funciona igual ao atributo accept do input file ([documentação](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/accept)). Caso exista o atributo `data-accept` no campo do formulário ele terá preferência. |
+| **accept** | string | `"*"` | Funciona igual ao atributo accept do input file ([documentação](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/accept)). Caso exista o atributo `data-accept` no campo do formulário ele terá preferência. Lembre-se que isso não impede o usuário de inserir arquivos diferentes do indicado no accpet. |
+| **validateUpload** | callback | `null` | Função, que recebe um `File` como parâmetro, para executar a validação do arquivo antes do upload. Em caso de arquivo inválido dispare uma exceção com string, isso impedirá o upload e mostrará o erro na barra de progresso do envio do anexo.|
 
 Se ao instanciar o Plugin o campo estiver **Desabilitado** ou o usuário não possuir permissão
 de complemento no processo, o botão de Upload/Delete não será exibido, mesmo se o parâmetro

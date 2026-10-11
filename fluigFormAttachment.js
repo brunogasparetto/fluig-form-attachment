@@ -7,6 +7,15 @@
 
 
 /**
+ * Callback de validação de Upload do Arquivo
+ *
+ * @callback ValidateUploadCallback
+ * @param {File} file Arquivo inserido como anexo para upload
+ * @returns {void}
+ * @throws {string} Disparar exceção, indicando o erro, para bloquear o envio do arquivo
+ */
+
+/**
  * Configurações
  *
  * @typedef AttachmentSettings
@@ -14,6 +23,7 @@
  * @property {boolean} filename Nome que será salvo como descrição do Anexo.
  * @property {boolean|string} prefixName Adiciona prefixo ao anexo. False por padrão, True para prefixo aleatório, String para prefixo fixo.
  * @property {string} accept Tipos de arquivos aceitos. Segue a regra do accept do input tipo file.
+ * @property {ValidateUploadCallback|null} validateUpload Validar o upload de um arquivo. Deve disparar uma excessão, indicando o erro, para bloquear o envio do arquivo.
  */
 
 ;(function ($) {
@@ -49,7 +59,19 @@
         filename: "Anexo",
         prefixName: false,
         accept: "*",
+        validateUpload: null,
     };
+
+    /**
+     * Indicação de callbacks de validação de arquivo
+     *
+     * Como o disparo da validação não ocorre diretamente no evento de upload,
+     * precisamos manter um de-para indicando o filename do campo para então
+     * validar, por isso esse cache é importante.
+     *
+     * @type {{string: ValidateUploadCallback}}
+     */
+    const validateUploadMap = {};
 
     class Plugin {
         /**
@@ -139,9 +161,7 @@
          * Método útil para excluir anexos em tabela Pai x Filho.
          */
         deleteAttachment() {
-            const attachmentIndex = parent.ECM.attachmentTable.getData().findIndex(
-                attachment => attachment.description === this.#attachmentFilename
-            );
+            const attachmentIndex = attachmentFindIndex(this.#attachmentFilename);
 
             setTimeout(() => this.#input.val("").trigger("change"), 500);
 
@@ -197,7 +217,7 @@
             const element = this.#input.get(0);
 
             return this.#settings.showActionButton
-                && parent.ECM.workflowView.userPermissions.indexOf("P") >= 0
+                && parent.ECM.workflowView.userPermissions.includes("P")
                 && location.href.includes('ManagerMode')
                 && !location.href.includes('token')
                 && element.nodeName.toLowerCase() === "input"
@@ -269,6 +289,10 @@
                 return;
             }
 
+            if (this.#settings.validateUpload) {
+                validateUploadMap[filename] = this.#settings.validateUpload;
+            }
+
             parent.$("#ecm-navigation-inputFile-clone")
                 .attr({
                     "data-on-camera": "true",
@@ -283,9 +307,7 @@
         }
 
         #viewAttachment() {
-            const attachmentIndex = parent.ECM.attachmentTable.getData().findIndex(
-                attachment => attachment.description === this.#attachmentFilename
-            );
+            const attachmentIndex = attachmentFindIndex(this.#attachmentFilename);
 
             if (attachmentIndex === -1) {
                 FLUIGC.toast({
@@ -298,8 +320,8 @@
             }
 
             const attachment = parent.ECM.attachmentTable.getRow(attachmentIndex);
-            const physicalFileName = attachment.physicalFileName.toLowerCase();
-            const isCompressedFile = compressedExtensions.some(extension => physicalFileName.endsWith(extension));
+            const fileName = (attachment.physicalFileName || attachment.name).toLowerCase();
+            const isCompressedFile = compressedExtensions.some(extension => fileName.endsWith(extension));
 
             if (attachment.documentId && !isCompressedFile) {
                 parent.WKFViewAttachment.openAttachmentView(parent.WCMAPI.userCode, attachment.documentId, attachment.version);
@@ -310,13 +332,35 @@
     }
 
     /**
+     * Cria o namespace do Plugin com métodos "globais"
+     */
+    $[pluginName] = function () {};
+
+    /**
+     * Indica se está rodando em um Processo
+     *
+     * @returns {boolean}
+     */
+    $[pluginName].isInProcess = () => parent.WKFViewAttachment && parent.ECM && parent.ECM.attachmentTable;
+
+    /**
+     * Oculta a aba de anexos (por padrão ela é oculta)
+     */
+    $[pluginName].hideAttachmentTab = () => { $[pluginName].isInProcess() && $("#tab-attachments", parent.document).hide() };
+
+    /**
+     * Exibe a aba de anexos (por padrão ela é oculta)
+     */
+    $[pluginName].showAttachmentTab = () => { $[pluginName].isInProcess() && $("#tab-attachments", parent.document).show() };
+
+    /**
      * Instancia o Plugin ou executa algum método do plugin
      *
      * @param {AttachmentSettings|string} options
      * @returns {undefined|boolean|void}
      */
     $.fn[pluginName] = function (options) {
-        if (!parent.WKFViewAttachment || !parent.ECM || !parent.ECM.attachmentTable) {
+        if (!$[pluginName].isInProcess()) {
             console.error(`Plugin ${pluginName} executado fora de um processo.`)
             return this;
         }
@@ -371,7 +415,7 @@
 
     $(() => {
         // Oculta aba anexos
-        $("#tab-attachments", parent.document).hide();
+        $[pluginName].hideAttachmentTab();
 
         parent.$("#ecm_navigation_fileupload")
             .on(`fileuploadadd.${pluginName}`, function(e, data) {
@@ -387,6 +431,31 @@
                     && parent.ECM.newAttachmentsDocs.findIndex(attachment => attachment.name === file.name) !== -1
                 ) {
                     return;
+                }
+
+                // Executa a callback de validação antes de efetuar o upload do arquivo
+
+                const filename = parent.document.getElementById("ecm-navigation-inputFile-clone").getAttribute("data-filename");
+
+                if (validateUploadMap[filename]) {
+                    try {
+                        validateUploadMap[filename].call(null, file);
+                    } catch (e) {
+                        const monitorItem = parent.ECM.attachFileMonitor.data.find(item => {
+                            return item && item.name === file.name && item.status === 1;
+                        });
+
+                        parent.ECM.attachFileMonitor.error(monitorItem, e);
+
+                        FLUIGC.toast({
+                            message: e,
+                            type: "danger"
+                        });
+
+                        return false;
+                    } finally {
+                        delete validateUploadMap[filename];
+                    }
                 }
 
                 loading.show();
