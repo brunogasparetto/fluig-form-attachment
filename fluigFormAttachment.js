@@ -334,24 +334,30 @@
     /**
      * Cria o namespace do Plugin com métodos "globais"
      */
-    $[pluginName] = function () {};
+    $[pluginName] = {
+        /**
+         * Indica se está rodando em um Processo
+         *
+         * @returns {boolean}
+         */
+        isInProcess() {
+            return parent.WKFViewAttachment && parent.ECM && parent.ECM.attachmentTable;
+        },
 
-    /**
-     * Indica se está rodando em um Processo
-     *
-     * @returns {boolean}
-     */
-    $[pluginName].isInProcess = () => parent.WKFViewAttachment && parent.ECM && parent.ECM.attachmentTable;
+        /**
+         * Oculta a aba de anexos (por padrão ela é oculta)
+         */
+        hideAttachmentTab() {
+            $[pluginName].isInProcess() && $("#tab-attachments", parent.document).hide();
+        },
 
-    /**
-     * Oculta a aba de anexos (por padrão ela é oculta)
-     */
-    $[pluginName].hideAttachmentTab = () => { $[pluginName].isInProcess() && $("#tab-attachments", parent.document).hide() };
-
-    /**
-     * Exibe a aba de anexos (por padrão ela é oculta)
-     */
-    $[pluginName].showAttachmentTab = () => { $[pluginName].isInProcess() && $("#tab-attachments", parent.document).show() };
+        /**
+         * Exibe a aba de anexos (por padrão ela é oculta)
+         */
+        showAttachmentTab() {
+            $[pluginName].isInProcess() && $("#tab-attachments", parent.document).show();
+        }
+    };
 
     /**
      * Instancia o Plugin ou executa algum método do plugin
